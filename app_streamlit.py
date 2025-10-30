@@ -1,7 +1,48 @@
-
+# app_streamlit.py
 import streamlit as st
+import pandas as pd
+import joblib
+import numpy as np
+import matplotlib.pyplot as plt
 
-# --- Project Branding ---
+# -------------------------------------------------------------
+# Page Configuration
+# -------------------------------------------------------------
+st.set_page_config(
+    page_title="AI-Based Construction Delay & Cost Overrun Predictor",
+    page_icon="🏗️",
+    layout="wide"
+)
+
+# -------------------------------------------------------------
+# Custom CSS for UCC Theme
+# -------------------------------------------------------------
+st.markdown("""
+    <style>
+        [data-testid="stSidebar"] {
+            background-color: #e8eef9;
+        }
+        .stButton button {
+            background-color: #002060;
+            color: white;
+            border-radius: 8px;
+        }
+        .stButton button:hover {
+            background-color: #cc0000;
+            color: white;
+        }
+        footer {
+            text-align: center;
+            color: gray;
+            font-size: 14px;
+            margin-top: 40px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# -------------------------------------------------------------
+# Sidebar with UCC Info
+# -------------------------------------------------------------
 with st.sidebar:
     st.image("https://ucc.edu.gh/sites/default/files/ucc_logo.png", width=120)
     st.markdown("### **Project Information**")
@@ -14,100 +55,120 @@ with st.sidebar:
     """)
     st.markdown("---")
 
->>>>>>> bb406ab9af2b5deb0202c90d0169fa8a98580ef8
-import joblib
-import pandas as pd
-import numpy as np
-from pathlib import Path
-
-st.set_page_config(page_title="Construction Delay & Cost Overrun Predictor", layout="wide")
-
-st.title("AI Predictor for Construction Delays & Cost Overruns")
-st.markdown("Enter project parameters or upload a CSV to get predictions for delay (months) and cost overrun (%).")
-
-model_path = Path("best_model.pkl")
-
+# -------------------------------------------------------------
+# Load Models
+# -------------------------------------------------------------
 @st.cache_resource
-def load_bundle():
-    if not model_path.exists():
-        st.error("Model file not found. Please run `python train_model.py` first to generate 'best_model.pkl'.")
-        st.stop()
-    return joblib.load(model_path)
+def load_models():
+    bundle = joblib.load("best_model.pkl")
+    return bundle
 
-bundle = load_bundle()
-FEATURES = bundle["features"]
-delay_model = bundle["models"]["delay"]
-cost_model  = bundle["models"]["cost"]
+try:
+    bundle = load_models()
+    features = bundle["features"]
+    delay_model = bundle["models"]["delay"]
+    cost_model = bundle["models"]["cost"]
+except Exception as e:
+    st.error("⚠️ Model could not be loaded. Please ensure 'best_model.pkl' is present.")
+    st.stop()
 
-st.sidebar.header("Single Prediction Input")
-def sidebar_inputs():
-    inputs = {}
-    inputs["Planned_Duration_Months"] = st.sidebar.slider("Planned Duration (months)", 6, 24, 12)
-    inputs["Estimated_Cost_USD"] = st.sidebar.number_input("Estimated Cost (USD)", min_value=100000, max_value=10000000, value=1200000, step=50000)
-    inputs["Labour_Hours"] = st.sidebar.slider("Labour Hours (man-days)", 2000, 20000, 8000, step=100)
-    inputs["Weather_Severity"] = st.sidebar.slider("Weather Severity (1-5)", 1, 5, 3)
-    inputs["Supply_Chain_Disruption"] = st.sidebar.selectbox("Supply Chain Disruption", [0, 1], index=0)
-    inputs["Contractor_Experience_Years"] = st.sidebar.slider("Contractor Experience (years)", 1, 30, 10)
-    return pd.DataFrame([inputs])
+# -------------------------------------------------------------
+# App Header
+# -------------------------------------------------------------
+st.title("🏗️ AI Predictor for Construction Delays & Cost Overruns")
+st.write("This application predicts **project delay (months)** and **cost overrun (%)** based on project parameters using AI models.")
 
-single_df = sidebar_inputs()
+# -------------------------------------------------------------
+# Input Section
+# -------------------------------------------------------------
+st.subheader("Single Prediction Input")
 
-col1, col2 = st.columns(2, gap="large")
+col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Single Project Prediction")
-    if st.button("Predict for Inputs Above"):
-        X = single_df[FEATURES]
-        delay_pred = delay_model.predict(X)[0]
-        cost_pred  = cost_model.predict(X)[0]
-        delay_pred = max(0.0, float(delay_pred))
-        cost_pred  = max(0.0, float(cost_pred))
-        st.metric("Predicted Delay (months)", f"{delay_pred:.2f}")
-        st.metric("Predicted Cost Overrun (%)", f"{cost_pred:.2f}%")
+    planned_duration = st.number_input("Planned Duration (months)", min_value=1, value=12)
+    estimated_cost = st.number_input("Estimated Cost (USD)", min_value=1000, value=1200000)
+    labour_hours = st.number_input("Labour Hours (man-days)", min_value=1, value=8000)
 
 with col2:
-    st.subheader("Batch Prediction via CSV Upload")
-    uploaded = st.file_uploader("Upload CSV with columns: " + ", ".join(FEATURES), type=["csv"])
-    if uploaded is not None:
-        df = pd.read_csv(uploaded)
-        missing = [c for c in FEATURES if c not in df.columns]
-        if missing:
-            st.error(f"Missing required columns: {missing}")
-        else:
-            delays = delay_model.predict(df[FEATURES])
-            costs  = cost_model.predict(df[FEATURES])
-            preds = pd.DataFrame({
-                "Predicted_Delay_Months": np.maximum(0.0, delays),
-                "Predicted_Cost_Overrun_Percent": np.maximum(0.0, costs),
-            })
-            st.write("Predictions:")
-            st.dataframe(pd.concat([df.reset_index(drop=True), preds], axis=1))
+    weather_severity = st.slider("Weather Severity (1–5)", 1, 5, 3)
+    supply_disruption = st.selectbox("Supply Chain Disruption (0 = No, 1 = Yes)", [0, 1])
+    contractor_experience = st.number_input("Contractor Experience (years)", min_value=0, value=10)
 
-st.markdown("---")
-st.subheader("Model Information")
-st.write(f"Delay model: **{bundle['delay_model_name']}** | Cost model: **{bundle['cost_model_name']}**")
-if Path("feature_importance.png").exists():
-    st.image("feature_importance.png", caption="Feature Importance (Best Model)", use_container_width=True)
-else:
-    st.info("Train the model to generate feature importance visualization.")
+# -------------------------------------------------------------
+# Prediction Logic
+# -------------------------------------------------------------
+if st.button("Predict for Inputs Above"):
+    X = pd.DataFrame([{
+        "Planned_Duration_Months": planned_duration,
+        "Estimated_Cost_USD": estimated_cost,
+        "Labour_Hours": labour_hours,
+        "Weather_Severity": weather_severity,
+        "Supply_Chain_Disruption": supply_disruption,
+        "Contractor_Experience_Years": contractor_experience
+    }])[features]
 
-st.markdown("**How to run locally**")
-st.code("""
-pip install -r requirements.txt
-python train_model.py
-streamlit run app_streamlit.py
+    delay_pred = float(delay_model.predict(X)[0])
+    cost_pred = float(cost_model.predict(X)[0])
+
+    delay_pred = max(0, delay_pred)
+    cost_pred = max(0, cost_pred)
+
+    st.success(f"**Predicted Delay:** {delay_pred:.2f} months")
+    st.success(f"**Predicted Cost Overrun:** {cost_pred:.2f} %")
+
+# -------------------------------------------------------------
+# Batch CSV Upload
+# -------------------------------------------------------------
+st.subheader("Batch Prediction via CSV Upload")
+
+st.markdown("""
+Upload a CSV file with the following columns:  
+`Planned_Duration_Months`, `Estimated_Cost_USD`, `Labour_Hours`, `Weather_Severity`,  
+`Supply_Chain_Disruption`, `Contractor_Experience_Years`
 """)
-<<<<<<< HEAD
 
-# --- Footer Section ---
-st.markdown("---")
-st.markdown(
-    """
-    <div style='text-align: center; font-size: 14px; color: gray;'>
-    Developed by <b>Ebenezer Gyasi Attah</b> | MSc IT | MS/ITE/24/0026 | University of Cape Coast © 2025
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-=======
->>>>>>> bb406ab9af2b5deb0202c90d0169fa8a98580ef8
+uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+
+if uploaded_file is not None:
+    try:
+        df = pd.read_csv(uploaded_file)
+        missing = [c for c in features if c not in df.columns]
+        if missing:
+            st.error(f"Missing columns: {missing}")
+        else:
+            delays = delay_model.predict(df[features])
+            costs = cost_model.predict(df[features])
+            df["Predicted_Delay_Months"] = np.maximum(0, delays)
+            df["Predicted_Cost_Overrun_Percent"] = np.maximum(0, costs)
+
+            st.dataframe(df.head())
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button("Download Predictions as CSV", csv, "predictions.csv", "text/csv", key="download-csv")
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
+
+# -------------------------------------------------------------
+# Feature Importance Visualization
+# -------------------------------------------------------------
+st.subheader("Model Information")
+
+try:
+    importance = delay_model.feature_importances_
+    fig, ax = plt.subplots()
+    ax.barh(features, importance)
+    ax.set_xlabel("Importance")
+    ax.set_title("Feature Importance (Delay Model)")
+    st.pyplot(fig)
+except Exception:
+    st.info("Feature importance plot unavailable for this model.")
+
+# -------------------------------------------------------------
+# Footer
+# -------------------------------------------------------------
+st.markdown("""
+---
+<div style='text-align: center; color: gray; font-size: 14px;'>
+Developed by <b>Ebenezer Gyasi Attah</b> | MSc IT | MS/ITE/24/0026 | University of Cape Coast © 2025
+</div>
+""", unsafe_allow_html=True)
