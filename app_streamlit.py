@@ -14,6 +14,7 @@ with st.sidebar:
     """)
     st.markdown("---")
 
+>>>>>>> bb406ab9af2b5deb0202c90d0169fa8a98580ef8
 import joblib
 import pandas as pd
 import numpy as np
@@ -96,6 +97,7 @@ pip install -r requirements.txt
 python train_model.py
 streamlit run app_streamlit.py
 """)
+<<<<<<< HEAD
 
 # --- Footer Section ---
 st.markdown("---")
@@ -107,3 +109,5 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+=======
+>>>>>>> bb406ab9af2b5deb0202c90d0169fa8a98580ef8
