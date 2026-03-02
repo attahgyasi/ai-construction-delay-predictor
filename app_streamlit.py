@@ -56,20 +56,48 @@ with st.sidebar:
     st.markdown("---")
 
 # -------------------------------------------------------------
-# Load Models
+# Load Models (Robust)
 # -------------------------------------------------------------
+import os
+from pathlib import Path
+
 @st.cache_resource
 def load_models():
-    bundle = joblib.load("best_model.pkl")
+    base_dir = Path(__file__).resolve().parent
+    model_path = base_dir / "best_model.pkl"
+
+    # Show path in logs (helps debugging)
+    # st.write(f"Looking for model at: {model_path}")  # optional
+
+    if not model_path.exists():
+        raise FileNotFoundError(f"best_model.pkl not found at: {model_path}")
+
+    bundle = joblib.load(model_path)
     return bundle
 
 try:
     bundle = load_models()
+
+    # Validate structure (very important)
+    if not isinstance(bundle, dict):
+        raise TypeError(f"Model bundle is not a dict. Got: {type(bundle)}")
+
+    if "features" not in bundle:
+        raise KeyError(f"'features' key missing. Bundle keys: {list(bundle.keys())}")
+
+    if "models" not in bundle:
+        raise KeyError(f"'models' key missing. Bundle keys: {list(bundle.keys())}")
+
+    if "delay" not in bundle["models"] or "cost" not in bundle["models"]:
+        raise KeyError(f"'delay'/'cost' missing. bundle['models'] keys: {list(bundle['models'].keys())}")
+
     features = bundle["features"]
     delay_model = bundle["models"]["delay"]
     cost_model = bundle["models"]["cost"]
+
 except Exception as e:
-    st.error("⚠️ Model could not be loaded. Please ensure 'best_model.pkl' is present.")
+    st.error("⚠️ The model bundle failed to load. See details below.")
+    st.exception(e)   # <-- THIS will show the real error reason
     st.stop()
 
 # -------------------------------------------------------------
