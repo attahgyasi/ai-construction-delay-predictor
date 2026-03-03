@@ -44,7 +44,7 @@ st.markdown("""
 # Sidebar with UCC Info
 # -------------------------------------------------------------
 with st.sidebar:
-    st.image("https://ucc.edu.gh/sites/default/files/ucc_logo.png", width=120)
+    st.image("ucc_logo.png", width=120)
     st.markdown("### **Project Information**")
     st.markdown("""
     **Name:** Ebenezer Gyasi Attah  
